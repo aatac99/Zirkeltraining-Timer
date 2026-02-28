@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power-Timer Sport</title>
+    <style>
+        :root { --bg-color: #222; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg-color); color: white; display: flex; flex-direction: column; align-items: center; height: 100vh; transition: background 0.3s; overflow: hidden; }
+        .work { --bg-color: #2ecc71; }
+        .rest { --bg-color: #e74c3c; }
+        
+        #timer-display { font-size: 110px; font-weight: 900; margin-top: 20px; font-variant-numeric: tabular-nums; text-shadow: 2px 2px 10px rgba(0,0,0,0.3); }
+        #status-text { font-size: 28px; text-transform: uppercase; letter-spacing: 3px; margin-top: 20px; font-weight: bold; }
+        
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 90%; margin-top: 20px; }
+        .input-group { background: rgba(255,255,255,0.15); padding: 15px; border-radius: 15px; text-align: center; backdrop-filter: blur(5px); }
+        input { width: 70px; background: white; border: none; color: black; font-size: 22px; text-align: center; border-radius: 8px; font-weight: bold; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; opacity: 0.9; }
+        
+        .main-btns { margin-top: 30px; display: flex; gap: 15px; }
+        button { border-radius: 50px; border: none; font-weight: bold; cursor: pointer; transition: transform 0.1s; -webkit-tap-highlight-color: transparent; }
+        button:active { transform: scale(0.95); }
+        
+        #startBtn { padding: 20px 50px; font-size: 22px; background: #fff; color: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        #resetBtn { padding: 15px 25px; font-size: 16px; background: rgba(255,255,255,0.2); color: white; }
+        
+        #counter-section { margin-top: auto; margin-bottom: 40px; text-align: center; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        #countBtn { background: rgba(0,0,0,0.3); border: 2px solid white; color: white; width: 80%; padding: 25px; font-size: 32px; border-radius: 20px; }
+        #resetCountBtn { background: transparent; color: rgba(255,255,255,0.6); font-size: 14px; text-decoration: underline; padding: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="status-text">Bereit machen!</div>
+    <div id="timer-display">00:00</div>
+
+    <div class="controls">
+        <div class="input-group">
+            <label>WORK (Sek)</label>
+            <input type="number" id="workInput" value="45" pattern="\d*">
+        </div>
+        <div class="input-group">
+            <label>PAUSE (Sek)</label>
+            <input type="number" id="restInput" value="15" pattern="\d*">
+        </div>
+    </div>
+
+    <div class="main-btns">
+        <button id="startBtn">START</button>
+        <button id="resetBtn">RESET</button>
+    </div>
+
+    <div id="counter-section">
+        <p style="margin:0; font-size: 14px; opacity: 0.8;">WIEDERHOLUNGEN</p>
+        <button id="countBtn">0</button>
+        <button id="resetCountBtn">Zähler zurücksetzen</button>
+    </div>
+
+<script>
+    let timer;
+    let timeLeft;
+    let isWorking = true;
+    let isRunning = false;
+    let count = 0;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playBeep() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 880; // Hoher Ton
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+    }
+
+    function sage(text, enthusiastisch = false) {
+        const msg = new SpeechSynthesisUtterance();
+        msg.text = text;
+        msg.lang = 'de-DE';
+        msg.rate = enthusiastisch ? 1.2 : 1.0; // Schneller = enthusiastischer
+        msg.pitch = enthusiastisch ? 1.1 : 1.0; // Etwas höhere Tonlage
+        window.speechSynthesis.speak(msg);
+    }
+
+    function updateDisplay(s) {
+        const mins = Math.floor(s / 60);
+        const secs = s % 60;
+        document.getElementById('timer-display').textContent = 
+            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function toggleTimer() {
+        if (isRunning) {
+            clearInterval(timer);
+            document.getElementById('startBtn').textContent = 'WEITER';
+        } else {
+            if (!timeLeft) {
+                timeLeft = document.getElementById('workInput').value;
+                playBeep();
+                sage("Und los! Gib alles!", true);
+            }
+            
+            timer = setInterval(() => {
+                timeLeft--;
+                updateDisplay(timeLeft);
+                
+                // Countdown Ansagen
+                if (timeLeft <= 3 && timeLeft > 0) {
+                    sage(timeLeft.toString());
+                }
+                
+                if (timeLeft <= 0) {
+                    isWorking = !isWorking;
+                    if (isWorking) {
+                        timeLeft = document.getElementById('workInput').value;
+                        playBeep(); // Piepton statt Sprache beim Start
+                        document.getElementById('status-text').textContent = 'GO! GO! GO!';
+                        document.body.className = 'work';
+                    } else {
+                        timeLeft = document.getElementById('restInput').value;
+                        sage("Pause! Durchatmen.", true);
+                        document.getElementById('status-text').textContent = 'PAUSE';
+                        document.body.className = 'rest';
+                    }
+                }
+            }, 1000);
+            document.getElementById('startBtn').textContent = 'STOPP';
+            document.body.className = isWorking ? 'work' : 'rest';
+        }
+        isRunning = !isRunning;
+    }
+
+    document.getElementById('startBtn').onclick = () => {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        toggleTimer();
+    };
+    
+    document.getElementById('resetBtn').onclick = () => {
+        clearInterval(timer);
+        isRunning = false;
+        isWorking = true;
+        timeLeft = document.getElementById('workInput').value;
+        updateDisplay(timeLeft);
+        document.getElementById('startBtn').textContent = 'START';
+        document.body.className = '';
+        document.getElementById('status-text').textContent = 'Bereit machen!';
+    };
+
+    document.getElementById('countBtn').onclick = () => {
+        count++;
+        document.getElementById('countBtn').textContent = count;
+        if (navigator.vibrate) navigator.vibrate(50);
+    };
+
+    document.getElementById('resetCountBtn').onclick = () => {
+        count = 0;
+        document.getElementById('countBtn').textContent = "0";
+    };
+
+    updateDisplay(document.getElementById('workInput').value);
+</script>
+</body>
+</html>
